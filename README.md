@@ -1,5 +1,5 @@
 # 505MI-LAB
-Cybersecurity Lab excercises and labs
+Cybersecurity Lab exercises and labs
 
 Student: Alessandro Querenghi
 
