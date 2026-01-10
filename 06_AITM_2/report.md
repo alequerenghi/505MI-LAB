@@ -171,7 +171,8 @@ f = f'tcp and not ether src {MAC_M}'
 pkt = sniff(iface='eth0', filter=f, prn=spoof_pkt)
 ```
 
-The results are as shown in the image <h1 style="color:red">Dio CANE</h1>
+The results are as shown in the image:  
+![Che dovrei scrivere qui?](images/telnet.png)
 
 ## 3. MITM ATTACK ON NETCAT
 
@@ -210,4 +211,5 @@ pkt = sniff(iface='eth0', filter=f, prn=spoof_pkt)
 ```
 
 This results in the exchange of the following messages:
-<h1 blue>DIo canissimo</h1>
+![PRospettiva A](images/nc_doppio.png)
+On the left we can observe the communication from `A`'s perspective while on the right we see `B`'s.
