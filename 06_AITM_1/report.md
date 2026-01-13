@@ -1,73 +1,119 @@
-# AITM
+# Adversary-in-the-Middle (AITM)
 
-## SETUP
+## Setup
 
-To setup Burp Proxy to perform SSLSTRIP attacks I performed the following actions:
-* Force the use of TLS on the proxy listener by modifying the interface
-* Toggle _Remove Secure flag from cookies_ 
-* Toggle _Convert HTTPS links to HTTP_
-* Add a replace rule to remove _Strict-Transport-Security_ response header
-* Add a replace rule to remove _Content-Security-Policy_ response header
+To configure **Burp Proxy** for performing **SSLstrip-style attacks**, the following steps were carried out:
 
-<!--One other thing we can do is to add the _Match and Replace_ rule to remove the response header Upgrade-Insecure-Request: 1 -->
+* Force the use of TLS on the proxy listener by modifying the listener interface
+* Enable **Remove Secure flag from cookies**
+* Enable **Convert HTTPS links to HTTP**
+* Add a *Match and Replace* rule to remove the `Strict-Transport-Security` response header
+* Add a *Match and Replace* rule to remove the `Content-Security-Policy` response header
+
+---
 
 ## CTAN.ORG
 
-Ctan, the Comprehensive TeX Archive Network is the main archive for TeX packages. It contains packages and documentation, as well as wikis and infos about TeX.  
-It doesn't contain HSTS response headers.
+**CTAN** (Comprehensive TeX Archive Network) is the main archive for TeX packages. It hosts packages, documentation, wikis, and additional resources related to TeX.
+At the time of the experiment, the website did **not** include `Strict-Transport-Security` (HSTS) response headers.
 
-### Modify Selected Portions of the Response
+---
 
-Using match and replace rules we can change the header to
-```HTML
-<h1 style="color:red">⚠ Website Compromised ⚠</h1> 
+### Modifying Selected Portions of the Response
+
+By using *Match and Replace* rules, it is possible to modify arbitrary parts of the HTML response. For example, the page header can be replaced with:
+
+```html
+<h1 style="color:red">⚠ Website Compromised ⚠</h1>
 ```
-which results in:
+
+This modification results in the following rendered page:
+
 ![Header modified](images/header.png)
 
-### Steal Credentials
+---
 
-Credentials can be stolen by simply looking at post requests for `ctan.org/k_spring_security_check` and can be extracted from the request body.
+### Stealing Credentials
+
+User credentials can be intercepted by observing POST requests sent to:
+
+```
+ctan.org/k_spring_security_check
+```
+
+The credentials are transmitted in the request body and can be extracted directly from intercepted traffic.
+
+---
 
 ### JavaScript Injection
 
-Using match and replace rules we can add a script to the page using
-```HTML
-<script> alert("MITM active: traffic intercepted"); </script></body>
+Using *Match and Replace* rules, arbitrary JavaScript can be injected into the page. For example:
+
+```html
+<script>alert("MITM active: traffic intercepted");</script></body>
 ```
-which results in
+
+This injection produces the following result:
+
 ![alert](images/alert.png)
-We note that more complex scripts could be added to perform other actions, such as reading and modifying cookies, modifying programmatically other parts of the page and so on.
 
-### Cookies Manipulation
-We can extract the cookie from the request and store it to perform Session Hijacking.
+More complex scripts could be injected to perform additional malicious actions, such as:
 
-To do so we open the developer tools and in the Storage session add the relevant cookie. The cookie can be sent to the attacker to perform session hijacking by simply visiting the same site and adding the cookie.
+* Reading or modifying cookies
+* Manipulating page content programmatically
+* Exfiltrating user data
+
+---
+
+### Cookie Manipulation
+
+Session cookies can be extracted from intercepted requests and reused to perform **session hijacking**.
+
+To demonstrate this, the browser’s developer tools can be used to manually insert the captured cookie into the storage section. Once the cookie is set, the attacker can access the website as the victim without reauthentication.
+
+---
 
 ### Download Link Manipulation
 
-Links to download packages can be manipulated to perform Supply Chain Compromise or Integrity Compromise.  
-A match and replace rule can be introduced to modify the download URL like:
-```HTML
-<a href="http://lab.local/payloads/fake_update.txt">Download</a> 
+Download links can be altered to perform **supply chain** or **integrity compromise** attacks.
+A *Match and Replace* rule can be used to modify the download URL, for example:
+
+```html
+<a href="http://lab.local/payloads/fake_update.txt">Download</a>
 ```
-which will attempt to download malicious packages.
+
+This causes the victim to download a malicious file instead of the legitimate package.
+
+---
 
 ## INTESASANPAOLO.COM
 
 ### Without HSTS
 
-If the page is loaded before loading `Strict-Transport-Security` then the browser doesn't present any warning and modifications can be performed as in the previous case, for instance we can replace an element with:
-```HTML
-<a href="/it/persone-e-famiglie.html" class="active" id="vtdd24bddcae08cd92a7a19736df002e2e60bdc2ddfd81f525b3b8dda43a185470" style="color:red; text:bold">Website Compromised</a>
+If the website is accessed **before** the `Strict-Transport-Security` policy is enforced by the browser, no security warning is displayed and content manipulation is possible.
+
+For instance, an HTML element can be replaced with:
+
+```html
+<a href="/it/persone-e-famiglie.html" class="active"
+   id="vtdd24bddcae08cd92a7a19736df002e2e60bdc2ddfd81f525b3b8dda43a185470"
+   style="color:red; font-weight:bold">
+   Website Compromised
+</a>
 ```
-which results in:
+
+This results in the following modified page:
 
 ![sanpaolo compromised](images/compromised.png)
 
+---
+
 ### With HSTS
 
-After connecting securely with HTTPS (while not connected to the proxy) the browser successfully loads the `Strict-Transport-Security` headers.  
-This can be verified when visiting the website on HTTP while connecting to the proxy:
+After accessing the website securely over HTTPS **without** the proxy, the browser successfully receives and enforces the `Strict-Transport-Security` header.
+
+This behavior can be verified by subsequently attempting to visit the HTTP version of the site while connected to the proxy:
+
 ![hsts](images/hsts.png)
-Navigation is prevented and cannot be circumvented by applying an exception rule to the browser.
+
+At this point, the browser prevents navigation entirely. The connection cannot be downgraded to HTTP, and the attack cannot be bypassed by adding browser exceptions.
