@@ -69,7 +69,7 @@ More complex scripts could be injected to perform additional malicious actions, 
 
 Session cookies can be extracted from intercepted requests and reused to perform **session hijacking**.
 
-To demonstrate this, the browser’s developer tools can be used to manually insert the captured cookie into the storage section. Once the cookie is set, the attacker can access the website as the victim without reauthentication.
+To demonstrate this, the browser’s developer tools can be used to manually insert the captured cookie into the **storage** section. Once the cookie is set, the attacker can access the website as the victim without reauthentication.
 
 ---
 

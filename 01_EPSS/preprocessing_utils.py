@@ -19,6 +19,7 @@ def _pick_primary_or_first(metrics):
             return entry
     return metrics[0] if isinstance(metrics[0], dict) else None
 
+
 def extract_cvss_data(row):
     """
     Extracts CVSS fields from V3.1 or V3.0.
@@ -58,37 +59,40 @@ def extract_cwes(weaknesses):
     return cwe_list
 
 
-def preprocess_NVD_data(df):
+def preprocess_NVD_data(df: pd.DataFrame) -> pd.DataFrame:
     """
     - Convert date fields
     - Extract English description, CVSS data, vulnerable CPEs, CWEs, number of references
     - Drop raw columns that are no longer needed
     """
     df = df.copy()
-    
+
     # Convert date fields
     df["cve.published"] = pd.to_datetime(df["cve.published"])
     df["cve.lastModified"] = pd.to_datetime(df["cve.lastModified"])
 
     # Extract English description, CVSS data, vulnerable CPEs, CWEs, number of references
     df['description'] = df['cve.descriptions'].apply(get_english_description)
-    df["vulnerable_cpes"] = df["cve.configurations"].apply(extract_vulnerable_cpes)
-    df["num_references"] = df["cve.references"].apply(lambda refs: len(refs) if isinstance(refs, list) else 0)
+    df["vulnerable_cpes"] = df["cve.configurations"].apply(
+        extract_vulnerable_cpes)
+    df["num_references"] = df["cve.references"].apply(
+        lambda refs: len(refs) if isinstance(refs, list) else 0)
     df["cwe_list"] = df["cve.weaknesses"].apply(extract_cwes)
     severity_order = ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
-    cvss_expanded = df.apply(lambda row: pd.Series(extract_cvss_data(row)), axis=1)
+    cvss_expanded = df.apply(lambda row: pd.Series(
+        extract_cvss_data(row)), axis=1)
     df = pd.concat([df, cvss_expanded], axis=1)
-    df["cvss_baseSeverity"] = pd.Categorical(df["cvss_baseSeverity"], categories=severity_order, ordered=True)
-    
+    df["cvss_baseSeverity"] = pd.Categorical(
+        df["cvss_baseSeverity"], categories=severity_order, ordered=True)
+
     # Drop raw columns that are no longer needed
     df = df.drop(['cve.descriptions',
                   'cve.cveTags',
-                  'cve.metrics.cvssMetricV40', 
+                  'cve.metrics.cvssMetricV40',
                   'cve.metrics.cvssMetricV31',
                   'cve.metrics.cvssMetricV30',
-                  'cve.metrics.cvssMetricV2', 
-                  'cve.configurations', 
+                  'cve.metrics.cvssMetricV2',
+                  'cve.configurations',
                   'cve.weaknesses'],
                  axis=1)
     return df
-    

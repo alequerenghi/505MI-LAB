@@ -14,10 +14,16 @@ admin' --
 ```
 
 This value is entered as the **username**, while any value can be entered as the **password**.
-The injected SQL comment (`--`) causes the password check to be ignored, successfully authenticating the attacker as `admin` and displaying the list of all employees:
+The injected SQL comment (`--`) causes the password check to be ignored, successfully authenticating the attacker as `admin` and displaying the list of all employees. This can be seen by observing the PHP code that performs the query:
+
 ```php
 $sql = "SELECT id, name, eid, salary, birth, ssn, address, email, nickname, Password 
-FROM credential WHERE name= 'admin' -- and Password='something silly'";
+FROM credential WHERE name='$name' and Password='$hashed_pwd'";
+```
+
+which becomes, with the provided input:
+```sql
+SELECT id, name, eid, salary, birth, ssn, address, email, nickname, Password  FROM credential WHERE name='admin' -- and Password='something silly'
 ```
 
 In the following tasks the result of the prompt will approximately be the same.
@@ -42,7 +48,7 @@ Upon execution, the server returns the HTML content of the page, confirming that
 The next task attempts to append a second SQL statement to the original query.
 This is done by using the semicolon (`;`) character to place multiple SQL statements on the same line.
 
-However, the attack fails because the backend database is **MySQL**, which disables query piggybacking by default. As a result, multiple SQL statements cannot be executed within a single query.
+However, the attack fails because the backend database is **MySQL**, which **disables query piggybacking by default**. As a result, multiple SQL statements cannot be executed within a single query.
 
 ---
 
@@ -59,7 +65,7 @@ To update the salary field, a SQL injection payload is used:
 alix', salary='999999
 ```
 
-After submitting this input, the salary displayed on the user's home page is updated accordingly. This happens because the php code in the backend simply puts the parameters taken from the URL into the SQL query that becomes:
+After submitting this input, the salary displayed on the user's home page is updated accordingly. This happens because the PHP code in the backend simply puts the parameters taken from the URL into the SQL query that becomes:
 
 ```SQL
 UPDATE credential SET
