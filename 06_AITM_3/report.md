@@ -164,3 +164,120 @@ root@43ac8970545f:/# curl alerenda.github.io
 </html>
 ```
 which shows that the user has been successfully spoofed on a malicious HTTP server while searching `alerenda.github.io`.
+
+# REAL ATTACK TOOLS
+
+## Evilginx
+
+In this final section, the phishing framework **Evilginx** was examined.
+The objective of the activity was to **observe the behavior of an adversary-in-the-middle (AitM) phishing tool in a controlled, local environment**, without exposing any real users or external services. The following paragraphs describe the setup and the observed behavior during limited demonstration tests.
+
+---
+
+## Obtaining Evilginx
+
+Evilginx can be obtained either by cloning the official repository and compiling the source code or by downloading a precompiled release package.
+
+After installation, the following components are available:
+
+* the `evilginx` binary
+* the `phishlets/` directory, where phishlet definition files are stored
+* the `redirectors/` directory
+
+Phishlets are YAML configuration files that describe how Evilginx should proxy and interact with a specific target service.
+
+---
+
+## Setup
+
+Evilginx operates as an **adversary-in-the-middle (AitM) proxy**.
+In a typical real-world scenario, it is deployed on a publicly reachable server with:
+
+* a public IP address
+* one or more registered domain names
+
+Victims are lured into navigating to a malicious hostname controlled by the attacker. Evilginx then proxies traffic between the victim and the legitimate service, relaying content while intercepting authentication data. To the victim, the page appears identical to the legitimate website, even though it is served through a malicious proxy.
+
+### Local development environment
+
+For this experiment, Evilginx was executed **locally in development mode**. This mode allows the tool to:
+
+* generate self-signed TLS certificates
+* operate without a public domain or public IP address
+
+The local machine is explicitly configured to trust the Evilginx-generated certificate authority, enabling HTTPS connections without browser warnings. This configuration is intended **only for testing and demonstration purposes**.
+
+Because no public DNS is used, hostnames corresponding to the phishing domains must be resolved locally. This is achieved by modifying the local hosts file so that test domains resolve to `127.0.0.1`. For example:
+
+```
+127.0.0.1 example.com academy.example.com login.example.com
+```
+
+In a real deployment, this step would not be required, as DNS records would be managed externally. However, this approach allows testing without registering domains or deploying virtual machines in the cloud.
+
+---
+
+## Attack Demonstration
+
+To simulate an attack scenario, phishlets were loaded into Evilginx.
+Each phishlet defines:
+
+* the target domains and subdomains
+* how requests should be proxied
+* where credentials or session tokens may be captured
+* optional scripts or content manipulation logic
+
+Testing was performed using:
+
+* a default phishlet provided with Evilginx
+* an additional phishlet targeting Yahoo
+
+Evilginx was then launched in developer mode. Since this was a local environment, the server domain and IP address were set to placeholder values (`example.com` and `127.0.0.1`). Warnings related to missing public configuration were expected and did not affect the demonstration.
+
+![Evilginx main interface](images/evilginx.png)
+
+Phishlet hostnames were then associated with the local test domain so that Evilginx could correctly handle incoming requests. Once configured, the phishlets were enabled.
+
+---
+
+## Lures and User Interaction
+
+Lures are URLs designed to direct victims to the malicious domain. When accessed, these URLs display a web page that is visually identical to the legitimate service but served through the proxy.
+
+From a user perspective:
+
+* the website layout and content appear legitimate
+* the URL contains a malicious (or typosquatted) domain
+* authentication data entered by the user is relayed through Evilginx
+
+Carefully crafted domain names can therefore deceive users into believing they are interacting with the genuine website.
+
+![List of lures](images/lures.png)
+
+---
+
+## Observed Results
+
+During the demonstration, Evilginx was able to proxy authentication flows and attempt credential capture. Depending on the phishlet configuration and the target service’s security mechanisms, results varied.
+
+* For some test services (e.g., `breakdev.org`), credential capture was successful.
+* For others (e.g., `yahoo.com`), the attack was unsuccessful due to additional protections implemented by the service.
+
+![Authentication flow](images/mastery.png)
+![Yahoo test page](images/yahoo.png)
+
+When successful, captured credentials were displayed within the Evilginx interface.
+
+![Captured credentials](images/credentials.png)
+
+---
+
+## Summary
+
+This experiment demonstrates how AitM phishing tools such as Evilginx rely on:
+
+* precise hostname control
+* trusted TLS certificates
+* user interaction with malicious links
+
+It also highlights the **limitations of such tools** when confronted with modern defensive mechanisms, including stricter authentication flows and protections against session hijacking. The local setup allowed safe observation of these behaviors without exposing real users or infrastructure.
