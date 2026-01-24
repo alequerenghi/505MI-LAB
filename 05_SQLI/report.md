@@ -116,7 +116,7 @@ Having identified both the vulnerability and the query structure, the next step 
 First, the number of columns in the original query was determined using an `ORDER BY` clause:
 
 ```http
-GET /rest/products/search?q=banana')) ORDER BY 100-- HTTP/1.1
+GET /rest/products/search?q=banana'))+ORDER+BY+100-- HTTP/1.1
 ```
 
 This produced the following error:
