@@ -21,7 +21,7 @@ The exploit consisted of injecting the following payload into the search bar:
 ```
 
 After pressing Enter, the search results page loaded and displayed a popup alert containing the text `xss`, along with an empty iframe rendered next to the *Search Result* header:
-![DOM](images/dom.png)
+![DOM](images/DOM.png)
 
 This confirms the presence of a DOM-based XSS vulnerability.
 
